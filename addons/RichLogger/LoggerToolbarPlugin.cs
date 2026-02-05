@@ -7,34 +7,57 @@ public partial class LoggerToolbarPlugin : EditorPlugin
 {
 	private LoggerToolbar? _toolbar;
 
-	public override void _EnterTree()
-	{
-		_toolbar = new LoggerToolbar();
+	    public override void _EnterTree()
+    {
+#if GODOT4_6_OR_GREATER
+        _toolbar = new LoggerToolbar();
+        
+        // current actual path is GetParent().GetChildren()[4].GetChildren()[0].GetChildren()[1].GetChildren()[2].GetChildren()[0].GetChildren()[1].GetChildren()[0]
+        // and the object has no parent 
+        var outputWindow = GetParent().FindChild("Output", owned: false);
+        if (outputWindow == null)
+        {
+            GD.Print("[CSharpRichLogger] Could not find Output window");
+            return;
+        }
 
-		var tempControl = new Control { Name = "Temp" };
-		var tabButton = AddControlToBottomPanel(tempControl, "Temp");
+        var vbLeft = FindOutputPanelVBoxLeft(outputWindow.GetChildren()[1]);
+        if (vbLeft == null)
+        {
+            GD.PrintErr("[CSharpRichLogger] Could not find vb_left container in EditorLog!");
+            return;
+        }
 
-		// Get the BottomPanel parent container of all buttons
-		foreach (var item in tempControl.GetParent().GetChildren())
-		{
-			// Find the button for the 'output' tab / panel
-			if (item.Name.ToString().Contains("EditorLog"))
-			{
-				// Find the left VBoxContainer (vb_left in the C++ code)
-				var vbLeft = FindOutputPanelVBoxLeft(item);
-				if (vbLeft != null)
-				{
-					vbLeft.AddChild(_toolbar);
-				}
-				else
-				{
-					GD.PrintErr("[CSharpRichLogger] Could not find vb_left container in EditorLog!");
-				}
-			}
-		}
-		_toolbar.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		RemoveControlFromBottomPanel(tempControl);
-	}
+        _toolbar.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        vbLeft.AddChild(_toolbar);
+
+#elif GODOT4_4_OR_GREATER
+        _toolbar = new LoggerToolbar();
+        var tempControl = new Control { Name = "Temp" };
+        var tabButton = AddControlToBottomPanel(tempControl, "Temp");
+
+        // Get the BottomPanel parent container of all buttons
+        foreach (var item in tempControl.GetParent().GetChildren())
+        {
+            // Find the button for the 'output' tab / panel
+            if (item.Name.ToString().Contains("EditorLog"))
+            {
+                // Find the left VBoxContainer (vb_left in the C++ code)
+                var vbLeft = FindOutputPanelVBoxLeft(item);
+                if (vbLeft != null)
+                {
+                    vbLeft.AddChild(_toolbar);
+                }
+                else
+                {
+                    GD.PrintErr("[CSharpRichLogger] Could not find vb_left container in EditorLog!");
+                }
+            }
+        }
+        _toolbar.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        RemoveControlFromBottomPanel(tempControl);
+#endif
+    }
 
 	/// <summary>
 	/// Finds the left VBoxContainer in the EditorLog node.
