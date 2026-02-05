@@ -2,16 +2,17 @@
 using System;
 using System.Linq;
 using Godot;
+
 [Tool]
 public partial class LoggerToolbarPlugin : EditorPlugin
 {
-	private LoggerToolbar? _toolbar;
+    private LoggerToolbar? _toolbar;
 
-	    public override void _EnterTree()
+    public override void _EnterTree()
     {
 #if GODOT4_6_OR_GREATER
         _toolbar = new LoggerToolbar();
-        
+
         // current actual path is GetParent().GetChildren()[4].GetChildren()[0].GetChildren()[1].GetChildren()[2].GetChildren()[0].GetChildren()[1].GetChildren()[0]
         // and the object has no parent 
         var outputWindow = GetParent().FindChild("Output", owned: false);
@@ -59,49 +60,50 @@ public partial class LoggerToolbarPlugin : EditorPlugin
 #endif
     }
 
-	/// <summary>
-	/// Finds the left VBoxContainer in the EditorLog node.
-	/// See: https://github.com/godotengine/godot/blob/master/editor/editor_log.cpp for how the output panel
-	/// is built interally in godot
-	/// </summary>
-	/// <param name="editorLog"></param>
-	/// <returns></returns>
-	private VBoxContainer? FindOutputPanelVBoxLeft(Node editorLog)
-	{
-		// The structure is: EditorLog (HBoxContainer) -> VBoxContainer (vb_left)
-		foreach (Node child in editorLog.GetChildren())
-		{
-			if (child is VBoxContainer vbox)
-			{
-				// Check if this VBoxContainer has the log and search box
-				bool hasRichTextLabel = false;
-				bool hasLineEdit = false;
-				
-				foreach (Node grandchild in vbox.GetChildren())
-				{
-					if (grandchild is RichTextLabel) hasRichTextLabel = true;
-					if (grandchild is LineEdit lineEdit && lineEdit.PlaceholderText.Contains("Filter")) hasLineEdit = true;
-				}
-				
-				if (hasRichTextLabel && hasLineEdit)
-				{
-					return vbox;
-				}
-			}
-		}
-		return null;
-	}
+    /// <summary>
+    /// Finds the left VBoxContainer in the EditorLog node.
+    /// See: https://github.com/godotengine/godot/blob/master/editor/editor_log.cpp for how the output panel
+    /// is built interally in godot
+    /// </summary>
+    /// <param name="editorLog"></param>
+    /// <returns></returns>
+    private VBoxContainer? FindOutputPanelVBoxLeft(Node editorLog)
+    {
+        // The structure is: EditorLog (HBoxContainer) -> VBoxContainer (vb_left)
+        foreach (Node child in editorLog.GetChildren())
+        {
+            if (child is VBoxContainer vbox)
+            {
+                // Check if this VBoxContainer has the log and search box
+                bool hasRichTextLabel = false;
+                bool hasLineEdit = false;
 
-	public override void _ExitTree()
-	{
-		if (_toolbar == null)
-			return;
+                foreach (Node grandchild in vbox.GetChildren())
+                {
+                    if (grandchild is RichTextLabel) hasRichTextLabel = true;
+                    if (grandchild is LineEdit lineEdit && lineEdit.PlaceholderText.Contains("Filter")) hasLineEdit = true;
+                }
 
-		var parent = _toolbar.GetParent() as VBoxContainer;
-		parent!.RemoveChild(_toolbar);
+                if (hasRichTextLabel && hasLineEdit)
+                {
+                    return vbox;
+                }
+            }
+        }
 
-		_toolbar.QueueFree();
-		_toolbar = null;
-	}
+        return null;
+    }
+
+    public override void _ExitTree()
+    {
+        if (_toolbar == null)
+            return;
+
+        var parent = _toolbar.GetParent() as VBoxContainer;
+        parent!.RemoveChild(_toolbar);
+
+        _toolbar.QueueFree();
+        _toolbar = null;
+    }
 }
 #endif
