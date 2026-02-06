@@ -1,109 +1,95 @@
 #if TOOLS
-using System;
-using System.Linq;
 using Godot;
 
 [Tool]
 public partial class LoggerToolbarPlugin : EditorPlugin
 {
-    private LoggerToolbar? _toolbar;
+	private LoggerToolbar? _toolbar;
 
-    public override void _EnterTree()
-    {
+	public override void _EnterTree()
+	{
+		_toolbar = new LoggerToolbar();
+
 #if GODOT4_6_OR_GREATER
-        _toolbar = new LoggerToolbar();
-
-        // current actual path is GetParent().GetChildren()[4].GetChildren()[0].GetChildren()[1].GetChildren()[2].GetChildren()[0].GetChildren()[1].GetChildren()[0]
-        // and the object has no parent 
-        var outputWindow = GetParent().FindChild("Output", owned: false);
-        if (outputWindow == null)
-        {
-            GD.Print("[CSharpRichLogger] Could not find Output window");
-            return;
-        }
-
-        var vbLeft = FindOutputPanelVBoxLeft(outputWindow.GetChildren()[1]);
-        if (vbLeft == null)
-        {
-            GD.PrintErr("[CSharpRichLogger] Could not find vb_left container in EditorLog!");
-            return;
-        }
-
-        _toolbar.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        vbLeft.AddChild(_toolbar);
-
-#elif GODOT4_4_OR_GREATER
-        _toolbar = new LoggerToolbar();
-        var tempControl = new Control { Name = "Temp" };
-        var tabButton = AddControlToBottomPanel(tempControl, "Temp");
-
-        // Get the BottomPanel parent container of all buttons
-        foreach (var item in tempControl.GetParent().GetChildren())
-        {
-            // Find the button for the 'output' tab / panel
-            if (item.Name.ToString().Contains("EditorLog"))
-            {
-                // Find the left VBoxContainer (vb_left in the C++ code)
-                var vbLeft = FindOutputPanelVBoxLeft(item);
-                if (vbLeft != null)
-                {
-                    vbLeft.AddChild(_toolbar);
-                }
-                else
-                {
-                    GD.PrintErr("[CSharpRichLogger] Could not find vb_left container in EditorLog!");
-                }
-            }
-        }
-        _toolbar.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        RemoveControlFromBottomPanel(tempControl);
+// ┠╴Output
+// ┃  ┠╴@Timer@7423
+// ┃  ┖╴@HBoxContainer@7424
+// ┃     ┠╴@VBoxContainer@7425
+// ┃     ┃  ┠╴@RichTextLabel@7428
+// ┃     ┃  ┃  ┠╴@VScrollBar@7426
+// ┃     ┃  ┃  ┖╴@Timer@7427
+// ┃     ┃  ┖╴@LineEdit@7429
+		var outputHBoxContainer = GetParent().FindChild("Output", owned: false).GetChildren()[1];
+#else
+// ┖╴@EditorLog@7343
+//     ┠╴@Timer@7325
+//     ┠╴@VBoxContainer@7326
+//     ┃  ┠╴@RichTextLabel@7328
+//     ┃  ┃  ┖╴@VScrollBar@7327
+//     ┃  ┖╴@LineEdit@7329
+		var outputHBoxContainer = GetParent().FindChild("*EditorLog*", owned: false);
 #endif
-    }
+		if (outputHBoxContainer == null)
+		{
+			GD.Print("[CSharpRichLogger] Could not find Output window");
+			return;
+		}
+		
+		var vbLeft = FindOutputPanelVBoxLeft(outputHBoxContainer);
+		if (vbLeft == null)
+		{
+			GD.PrintErr("[CSharpRichLogger] Could not find vb_left container in EditorLog!");
+			return;
+		}
 
-    /// <summary>
-    /// Finds the left VBoxContainer in the EditorLog node.
-    /// See: https://github.com/godotengine/godot/blob/master/editor/editor_log.cpp for how the output panel
-    /// is built interally in godot
-    /// </summary>
-    /// <param name="editorLog"></param>
-    /// <returns></returns>
-    private VBoxContainer? FindOutputPanelVBoxLeft(Node editorLog)
-    {
-        // The structure is: EditorLog (HBoxContainer) -> VBoxContainer (vb_left)
-        foreach (Node child in editorLog.GetChildren())
-        {
-            if (child is VBoxContainer vbox)
-            {
-                // Check if this VBoxContainer has the log and search box
-                bool hasRichTextLabel = false;
-                bool hasLineEdit = false;
+		_toolbar.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		vbLeft.AddChild(_toolbar);
+	}
 
-                foreach (Node grandchild in vbox.GetChildren())
-                {
-                    if (grandchild is RichTextLabel) hasRichTextLabel = true;
-                    if (grandchild is LineEdit lineEdit && lineEdit.PlaceholderText.Contains("Filter")) hasLineEdit = true;
-                }
+	/// <summary>
+	/// Finds the left VBoxContainer in the EditorLog node.
+	/// See: https://github.com/godotengine/godot/blob/master/editor/editor_log.cpp for how the output panel
+	/// is built interally in godot
+	/// </summary>
+	/// <param name="editorLog"></param>
+	/// <returns></returns>
+	private VBoxContainer? FindOutputPanelVBoxLeft(Node editorLog)
+	{
+		// The structure is: EditorLog (HBoxContainer) -> VBoxContainer (vb_left)
+		foreach (Node child in editorLog.GetChildren())
+		{
+			if (child is VBoxContainer vbox)
+			{
+				// Check if this VBoxContainer has the log and search box
+				bool hasRichTextLabel = false;
+				bool hasLineEdit = false;
 
-                if (hasRichTextLabel && hasLineEdit)
-                {
-                    return vbox;
-                }
-            }
-        }
+				foreach (Node grandchild in vbox.GetChildren())
+				{
+					if (grandchild is RichTextLabel) hasRichTextLabel = true;
+					if (grandchild is LineEdit lineEdit && lineEdit.PlaceholderText.Contains("Filter")) hasLineEdit = true;
+				}
 
-        return null;
-    }
+				if (hasRichTextLabel && hasLineEdit)
+				{
+					return vbox;
+				}
+			}
+		}
 
-    public override void _ExitTree()
-    {
-        if (_toolbar == null)
-            return;
+		return null;
+	}
 
-        var parent = _toolbar.GetParent() as VBoxContainer;
-        parent!.RemoveChild(_toolbar);
+	public override void _ExitTree()
+	{
+		if (_toolbar == null)
+			return;
 
-        _toolbar.QueueFree();
-        _toolbar = null;
-    }
+		var parent = _toolbar.GetParent() as VBoxContainer;
+		parent!.RemoveChild(_toolbar);
+
+		_toolbar.QueueFree();
+		_toolbar = null;
+	}
 }
 #endif
