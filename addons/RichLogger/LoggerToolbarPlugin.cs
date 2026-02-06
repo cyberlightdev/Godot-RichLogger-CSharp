@@ -1,7 +1,6 @@
 #if TOOLS
-using System;
-using System.Linq;
 using Godot;
+
 [Tool]
 public partial class LoggerToolbarPlugin : EditorPlugin
 {
@@ -11,29 +10,40 @@ public partial class LoggerToolbarPlugin : EditorPlugin
 	{
 		_toolbar = new LoggerToolbar();
 
-		var tempControl = new Control { Name = "Temp" };
-		var tabButton = AddControlToBottomPanel(tempControl, "Temp");
-
-		// Get the BottomPanel parent container of all buttons
-		foreach (var item in tempControl.GetParent().GetChildren())
+#if GODOT4_6_OR_GREATER
+// ┠╴Output
+// ┃  ┠╴@Timer@7423
+// ┃  ┖╴@HBoxContainer@7424
+// ┃     ┠╴@VBoxContainer@7425
+// ┃     ┃  ┠╴@RichTextLabel@7428
+// ┃     ┃  ┃  ┠╴@VScrollBar@7426
+// ┃     ┃  ┃  ┖╴@Timer@7427
+// ┃     ┃  ┖╴@LineEdit@7429
+		var outputHBoxContainer = GetParent().FindChild("Output", owned: false).GetChildren()[1];
+#else
+// ┖╴@EditorLog@7343
+//     ┠╴@Timer@7325
+//     ┠╴@VBoxContainer@7326
+//     ┃  ┠╴@RichTextLabel@7328
+//     ┃  ┃  ┖╴@VScrollBar@7327
+//     ┃  ┖╴@LineEdit@7329
+		var outputHBoxContainer = GetParent().FindChild("*EditorLog*", owned: false);
+#endif
+		if (outputHBoxContainer == null)
 		{
-			// Find the button for the 'output' tab / panel
-			if (item.Name.ToString().Contains("EditorLog"))
-			{
-				// Find the left VBoxContainer (vb_left in the C++ code)
-				var vbLeft = FindOutputPanelVBoxLeft(item);
-				if (vbLeft != null)
-				{
-					vbLeft.AddChild(_toolbar);
-				}
-				else
-				{
-					GD.PrintErr("[CSharpRichLogger] Could not find vb_left container in EditorLog!");
-				}
-			}
+			GD.Print("[CSharpRichLogger] Could not find Output window");
+			return;
 		}
+		
+		var vbLeft = FindOutputPanelVBoxLeft(outputHBoxContainer);
+		if (vbLeft == null)
+		{
+			GD.PrintErr("[CSharpRichLogger] Could not find vb_left container in EditorLog!");
+			return;
+		}
+
 		_toolbar.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		RemoveControlFromBottomPanel(tempControl);
+		vbLeft.AddChild(_toolbar);
 	}
 
 	/// <summary>
@@ -53,19 +63,20 @@ public partial class LoggerToolbarPlugin : EditorPlugin
 				// Check if this VBoxContainer has the log and search box
 				bool hasRichTextLabel = false;
 				bool hasLineEdit = false;
-				
+
 				foreach (Node grandchild in vbox.GetChildren())
 				{
 					if (grandchild is RichTextLabel) hasRichTextLabel = true;
 					if (grandchild is LineEdit lineEdit && lineEdit.PlaceholderText.Contains("Filter")) hasLineEdit = true;
 				}
-				
+
 				if (hasRichTextLabel && hasLineEdit)
 				{
 					return vbox;
 				}
 			}
 		}
+
 		return null;
 	}
 
