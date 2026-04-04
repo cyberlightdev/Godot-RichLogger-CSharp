@@ -8,10 +8,14 @@
 .github/         export-ignore
 .idea/           export-ignore
 icon.svg         export-ignore
+icon.svg.import  export-ignore
 icon.png         export-ignore
+icon.png.import  export-ignore
 screen.png       export-ignore
+screen.png.import export-ignore
 scene.tscn       export-ignore
 Scene.cs         export-ignore
+Scene.cs.uid     export-ignore
 RichLogger.csproj export-ignore
 RichLogger.sln   export-ignore
 README.md        export-ignore
