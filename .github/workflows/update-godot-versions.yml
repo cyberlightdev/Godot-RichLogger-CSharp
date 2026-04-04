@@ -2,14 +2,14 @@ name: Update Godot Versions
 
 on:
   schedule:
-    - cron: '0 8 * * 1'  # Monday 08:00 UTC
+    - cron: '0 4 * * *'  # Daily 04:00 UTC
   workflow_dispatch:
 
 jobs:
   update:
     runs-on: [self-hosted, linux, godot]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Find latest stable Godot versions
         id: find-versions
@@ -17,19 +17,32 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           set -euo pipefail
-          MINORS="4.3 4.4 4.5 4.6"
 
+          # Fetch all stable releases (tag format: 4.x-stable or 4.x.y-stable)
           ALL_RELEASES=$(gh api repos/godotengine/godot/releases \
             --paginate \
-            --jq '[.[] | select(.prerelease==false) | select(.tag_name | test("^[0-9]+\\.[0-9]+(\\.[0-9]+)?-stable$")) | .tag_name] | .[]' \
+            --jq '[.[] | select(.prerelease==false) | select(.tag_name | test("^4\\.[0-9]+(\\.[0-9]+)?-stable$")) | .tag_name] | .[]' \
             | sort -V)
+
+          # Discover all unique minors >= GODOT_MIN_VERSION that have stable releases
+          MIN_VERSION="${{ vars.GODOT_MIN_VERSION }}"
+          MINORS=$(echo "$ALL_RELEASES" \
+            | sed 's/-stable$//' \
+            | grep -oP '^[0-9]+\.[0-9]+' \
+            | sort -uV \
+            | awk -v min="$MIN_VERSION" '{
+                split(min, m, "."); split($0, v, ".")
+                if (v[1] > m[1] || (v[1] == m[1] && v[2] >= m[2])) print
+              }')
+
+          echo "Discovered minor versions: $(echo $MINORS | tr '\n' ' ')"
 
           NEW_VERSIONS=""
           for MINOR in $MINORS; do
             LATEST=$(echo "$ALL_RELEASES" \
               | grep -P "^${MINOR}(\\.[0-9]+)?-stable$" \
               | sort -V | tail -1 \
-              | sed 's/-stable//')
+              | sed 's/-stable$//')
             if [ -n "$LATEST" ]; then
               NEW_VERSIONS="${NEW_VERSIONS:+${NEW_VERSIONS},}${LATEST}"
               echo "Godot ${MINOR}.x -> ${LATEST}"
@@ -52,11 +65,27 @@ jobs:
 
           if [ "$CURRENT" = "$NEW" ]; then
             echo "No change. All versions are up to date."
-            exit 0
+          else
+            echo "Updating GODOT_VERSIONS: $CURRENT -> $NEW"
+            gh variable set GODOT_VERSIONS --body "$NEW"
+            echo "Triggering test workflow with new versions..."
+            gh workflow run test.yml --field "versions=$NEW"
           fi
 
-          echo "Updating GODOT_VERSIONS: $CURRENT -> $NEW"
-          gh variable set GODOT_VERSIONS --body "$NEW"
+      - name: Clean up outdated Godot editor cache
+        run: |
+          NEW="${{ steps.find-versions.outputs.new_versions }}"
+          GODOT_CACHE="/root/.godot-cache"
 
-          echo "Triggering test workflow with new versions..."
-          gh workflow run test.yml --field "versions=$NEW"
+          [ -d "$GODOT_CACHE" ] || exit 0
+
+          EXPECTED=$(echo "$NEW" | tr ',' '\n' | sed 's/.*/Godot_v&-stable_mono_linux_x86_64/')
+
+          find "$GODOT_CACHE" -maxdepth 1 -type d -name "Godot_v*-stable_mono_linux_x86_64" | while read DIR; do
+            BASENAME=$(basename "$DIR")
+            if ! echo "$EXPECTED" | grep -qF "$BASENAME"; then
+              echo "Removing outdated cache: $BASENAME"
+              rm -rf "$DIR"
+            fi
+          done
+          echo "Cache cleanup complete."

@@ -4,14 +4,14 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: '0 9 * * 1'  # Monday 09:00 UTC
+    - cron: '0 5 * * *'  # Daily 05:00 UTC
 
 jobs:
   check:
     name: Verify Asset Library points to latest main commit
     runs-on: [self-hosted, linux, godot]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Check Asset Library matches HEAD
         run: |
@@ -23,10 +23,8 @@ jobs:
           echo "HEAD commit          : $HEAD_COMMIT"
 
           if [ "$ASSET_COMMIT" != "$HEAD_COMMIT" ]; then
-            echo ""
             echo "ERROR: Asset Library is out of date!"
-            echo "Please update the addon at:"
-            echo "  https://godotengine.org/asset-library/asset/4023"
+            echo "Please update: https://godotengine.org/asset-library/asset/4023"
             exit 1
           fi
 
