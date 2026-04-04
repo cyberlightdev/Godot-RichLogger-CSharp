@@ -1,0 +1,62 @@
+name: Update Godot Versions
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'  # Monday 08:00 UTC
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: [self-hosted, linux, godot]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find latest stable Godot versions
+        id: find-versions
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          set -euo pipefail
+          MINORS="4.3 4.4 4.5 4.6"
+
+          ALL_RELEASES=$(gh api repos/godotengine/godot/releases \
+            --paginate \
+            --jq '[.[] | select(.prerelease==false) | select(.tag_name | test("^[0-9]+\\.[0-9]+(\\.[0-9]+)?-stable$")) | .tag_name] | .[]' \
+            | sort -V)
+
+          NEW_VERSIONS=""
+          for MINOR in $MINORS; do
+            LATEST=$(echo "$ALL_RELEASES" \
+              | grep -P "^${MINOR}(\\.[0-9]+)?-stable$" \
+              | sort -V | tail -1 \
+              | sed 's/-stable//')
+            if [ -n "$LATEST" ]; then
+              NEW_VERSIONS="${NEW_VERSIONS:+${NEW_VERSIONS},}${LATEST}"
+              echo "Godot ${MINOR}.x -> ${LATEST}"
+            fi
+          done
+
+          echo "new_versions=$NEW_VERSIONS" >> $GITHUB_OUTPUT
+
+      - name: Compare and update variable
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          set -euo pipefail
+          NEW="${{ steps.find-versions.outputs.new_versions }}"
+
+          CURRENT=$(gh variable get GODOT_VERSIONS --json value --jq '.value' 2>/dev/null || echo "")
+
+          echo "Current : $CURRENT"
+          echo "New     : $NEW"
+
+          if [ "$CURRENT" = "$NEW" ]; then
+            echo "No change. All versions are up to date."
+            exit 0
+          fi
+
+          echo "Updating GODOT_VERSIONS: $CURRENT -> $NEW"
+          gh variable set GODOT_VERSIONS --body "$NEW"
+
+          echo "Triggering test workflow with new versions..."
+          gh workflow run test.yml --field "versions=$NEW"
