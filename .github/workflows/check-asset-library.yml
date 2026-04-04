@@ -1,0 +1,33 @@
+name: Check Asset Library
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 9 * * 1'  # Monday 09:00 UTC
+
+jobs:
+  check:
+    name: Verify Asset Library points to latest main commit
+    runs-on: [self-hosted, linux, godot]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Asset Library matches HEAD
+        run: |
+          RESPONSE=$(curl -s --fail "https://godotengine.org/asset-library/api/asset/4023")
+          ASSET_COMMIT=$(echo "$RESPONSE" | jq -r '.download_commit')
+          HEAD_COMMIT=$(git rev-parse HEAD)
+
+          echo "Asset Library commit : $ASSET_COMMIT"
+          echo "HEAD commit          : $HEAD_COMMIT"
+
+          if [ "$ASSET_COMMIT" != "$HEAD_COMMIT" ]; then
+            echo ""
+            echo "ERROR: Asset Library is out of date!"
+            echo "Please update the addon at:"
+            echo "  https://godotengine.org/asset-library/asset/4023"
+            exit 1
+          fi
+
+          echo "OK: Asset Library is up to date."
