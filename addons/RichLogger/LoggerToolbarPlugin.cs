@@ -8,6 +8,20 @@ public partial class LoggerToolbarPlugin : EditorPlugin
 {
 	private LoggerToolbar? _toolbar;
 
+	private string PluginPath => GetScript().As<CSharpScript>().ResourcePath.GetBaseDir();
+    
+	public override void _EnablePlugin()
+	{
+		AddAutoloadSingleton("RichLogger", $"{PluginPath}/LoggerAutoload.cs");
+		base._EnablePlugin();
+	}
+    
+	public override void _DisablePlugin()
+	{
+		RemoveAutoloadSingleton("Logger");
+		base._DisablePlugin();
+	}
+	
 	public override void _EnterTree()
 	{
 		_toolbar = new LoggerToolbar();
