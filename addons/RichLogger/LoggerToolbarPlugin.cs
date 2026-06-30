@@ -18,7 +18,7 @@ public partial class LoggerToolbarPlugin : EditorPlugin
     
 	public override void _DisablePlugin()
 	{
-		RemoveAutoloadSingleton("Logger");
+		RemoveAutoloadSingleton("RichLogger");
 		base._DisablePlugin();
 	}
 	
